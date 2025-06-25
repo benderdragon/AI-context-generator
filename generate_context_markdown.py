@@ -20,9 +20,7 @@ def generate_context_markdown(output_filename: str = "project_context.md"):
         readme_content = "## Project Overview\n\nREADME.md not found. Please create one with project description."
 
     # --- SECTION 2: Chronological List of Issues/Requirements ---
-    # IMPORTANT: This section needs to be manually populated by you
-    # based on our conversation history. It's a placeholder.
-    issues_content_placeholder = """
+    issues_content = """
 ## Chronological List of Issues/Requirements & Resolutions
 
 This section summarizes the issues encountered and the solutions implemented throughout the project's development. This is crucial for understanding the rationale behind the current codebase.
@@ -125,8 +123,11 @@ Only recent issues are mentioned. Some older issues may not appear.
         "beatmap_event_manager.py",
         "info_file_manager.py",
         "scripts/generate_zombie_beatmap.py",
+        "scripts/parse_lua_to_json.py",
         "main_beatmap_app.py",
-        "game_paths.py", # This file should exist for the AI to see the structure
+        "game_paths_template.py",
+        "game_entity_definitions.json",
+        "game_trap_definitions.json",
         ".gitignore"
     ]
 
@@ -156,7 +157,7 @@ This document consolidates all necessary information for an AI assistant to unde
 
 {readme_content}
 
-{issues_content_placeholder}
+{issues_content}
 
 {codebase_content}
 
