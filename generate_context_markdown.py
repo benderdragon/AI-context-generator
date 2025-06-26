@@ -2,135 +2,63 @@ import os
 from pathlib import Path
 from datetime import datetime
 import re
-from typing import List, Tuple # Import Tuple for clearer type hinting
+from typing import List, Tuple
 
-def generate_context_markdown(output_filename: str = "project_context.md"):
+def generate_context_markdown(
+    output_filename: str = "project_context.md",
+    project_name: str = "Unnamed Project", # New parameter for project name
+    readme_filename: str = "README.md", # Parameterize README path
+    issues_filename: str = "project_issues.md", # Parameterize issues path
+    design_decisions_filename: str = "project_design_decisions.md", # Parameterize design decisions path
+    ai_instructions_filename: str = "ai_instructions.md" # Parameterize AI instructions path
+):
     """
     Combines project information and code files into a single Markdown file
     for AI context preservation.
+    
+    Args:
+        output_filename (str): The name of the output Markdown file.
+        project_name (str): The name of the project.
+        readme_filename (str): The filename of the project's README.
+        issues_filename (str): The filename containing chronological issues/requirements.
+        design_decisions_filename (str): The filename containing key design decisions.
+        ai_instructions_filename (str): The filename containing AI assistant instructions.
     """
-    # Assumes this script is in a 'scripts/' subdirectory within the project root.
-    # Adjust `Path(__file__).parent.parent` if your structure is different.
     project_root = Path(__file__).parent.parent 
     
     # --- SECTION 1: Project Overview (from README.md) ---
-    readme_path = project_root / "README.md"
+    readme_path = project_root / readme_filename
     readme_content = ""
     if readme_path.exists():
         readme_content = readme_path.read_text(encoding="utf-8")
     else:
-        readme_content = "## Project Overview\n\nREADME.md not found. Please create one with project description."
+        readme_content = f"## Project Overview\n\n`{readme_filename}` not found. Please create one with project description."
 
-    # --- SECTION 2: Chronological List of Issues/Requirements ---
-    issues_content = """
-## Chronological List of Issues/Requirements & Resolutions
+    # --- SECTION 2: Chronological List of Issues/Requirements (from project_issues.md) ---
+    issues_path = project_root / issues_filename
+    issues_content = ""
+    if issues_path.exists():
+        issues_content = issues_path.read_text(encoding="utf-8")
+    else:
+        issues_content = f"## Chronological List of Issues/Requirements & Resolutions\n\n`{issues_filename}` not found. Please create one with project issues and resolutions."
 
-This section summarizes the issues encountered and the solutions implemented throughout the project's development. This is crucial for understanding the rationale behind the current codebase.
+    # --- SECTION 3: Key Design Decisions (from project_design_decisions.md) ---
+    design_decisions_path = project_root / design_decisions_filename
+    design_decisions_content = ""
+    if design_decisions_path.exists():
+        design_decisions_content = design_decisions_path.read_text(encoding="utf-8")
+    else:
+        design_decisions_content = f"## Key Design Decisions\n\n`{design_decisions_filename}` not found. Please create one with key design decisions."
 
-Only recent issues are mentioned. Some older issues may not appear.
+    # --- SECTION 4: Instructions for AI Assistant (from ai_instructions.md) ---
+    ai_instructions_path = project_root / ai_instructions_filename
+    ai_instructions_content = ""
+    if ai_instructions_path.exists():
+        ai_instructions_content = ai_instructions_path.read_text(encoding="utf-8")
+    else:
+        ai_instructions_content = f"## Instructions for AI Assistant\n\n`{ai_instructions_filename}` not found. Please create one with instructions for the AI assistant."
 
----
-
-**ISSUE 1: Difficulty Labels for `info.json` Entries**
-* **Description:** The `info.json` file needs to accurately reflect the difficulty of a beatmap, and there should be a predefined set of valid difficulty labels (e.g., "Easy", "Medium", "Hard", "Impossible"). The system should validate against these labels to prevent arbitrary inputs.
-* **Status:** Addressed
-* **Resolution/Discussion:** A `VALID_DIFFICULTY_LABELS` class variable was added to `InfoFileManager`. The `add_difficulty_entry` method now explicitly checks the provided `difficulty_label` against this list and raises a `ValueError` if invalid. The `generate_zombie_beatmap` script was updated to ensure it passes a valid label.
-* **Reference:** Discussed in various turns, specifically implemented in `info_file_manager.py` and utilized in `scripts/generate_zombie_beatmap.py`.
-
----
-
-**ISSUE 2: `TrackLength` Management in `info.json`**
-* **Description:** The `TrackLength` field in `info.json` (e.g., "0:00") should represent the actual duration of the audio track and not be dynamically changed or calculated by the beatmap generation process. It should be loaded from a template `info.json` and remain untouched.
-* **Status:** Addressed
-* **Resolution/Discussion:** The `_calculate_track_length` method was removed from `InfoFileManager`. The `TrackLength` field is now only loaded from the template `info.json` file and is explicitly excluded from modification logic in `add_difficulty_entry`. This ensures `InfoFileManager` focuses solely on metadata, not audio analysis.
-* **Reference:** Implemented in `info_file_manager.py`.
-
----
-
-**ISSUE 3: Correct `BeatCount` for `info.json` and Individual Difficulties**
-* **Description:** The `BeatCount` in the `DifficultyInformation` entry should represent the total beats covered by that specific beatmap file (i.e., the `max_ending_beat_number + 1` from the beatmap events). Additionally, the top-level `BeatCount` in `info.json` should reflect the *longest* beatmap's beat count among all difficulties.
-* **Status:** Addressed
-* **Resolution/Discussion:** A `get_max_beat_number()` method was added to `BeatmapEventManager` to determine the highest beat used across all events. In `scripts/generate_zombie_beatmap.py`, this value is used to calculate the `beat_count` passed to `InfoFileManager.add_difficulty_entry`. The `add_difficulty_entry` method now updates the top-level `BeatCount` in `info_data` only if the new difficulty's `beat_count` is greater than the existing top-level `BeatCount`.
-* **Reference:** Implemented in `beatmap_event_manager.py` and `info_file_manager.py`, utilized in `scripts/generate_zombie_beatmap.py`.
-
----
-
-**ISSUE 4: Flexible BPM Handling for `DifficultyInformation`**
-* **Description:** The BPM for a difficulty entry should ideally come from the specific beatmap being added. If not provided, it should default to the top-level `BeatsPerMinute` value in `info.json`. If that is also missing or zero, a sensible fallback (e.g., 120 BPM) should be used. Also, the top-level `BeatsPerMinute` should be set if it's currently 0 (indicating it's from a default empty template) when the first difficulty is added.
-* **Status:** Addressed
-* **Resolution/Discussion:** The `add_difficulty_entry` method in `InfoFileManager` now has an optional `bpm` parameter. If `bpm` is `None`, it retrieves the BPM from the top-level `_info_data.get("BeatsPerMinute")`. If that is also `None` or `<= 0`, it defaults to `120`. Furthermore, if the top-level `BeatsPerMinute` is `0`, it is updated with the `entry_bpm` of the first difficulty added.
-* **Reference:** Implemented in `info_file_manager.py` and utilized in `scripts/generate_zombie_beatmap.py`.
-
----
-
-**ISSUE 5: `track` Parameter Requirement for Spawn Events**
-* **Description:** When adding `SpawnEnemy` or `SpawnTrap` events, the `track` parameter should be mandatory as enemies and traps are always placed on a specific track in-game. Previously, it might have been optional or had a default that didn't enforce this.
-* **Status:** Addressed
-* **Resolution/Discussion:** The `track` parameter in `add_spawn_enemy_event` and `add_spawn_trap_event` methods within `BeatmapEventManager` was made a mandatory argument without a default value, clearly indicating its necessity.
-* **Reference:** Implemented in `beatmap_event_manager.py` and demonstrated in `main_beatmap_app.py` and `scripts/generate_zombie_beatmap.py`.
-
----
-
-**ISSUE 6: Handling `start_beat_number` and `end_beat_number` for Events**
-* **Description:** Event creation methods should be flexible, allowing users to provide either a `start_beat_number`, an `end_beat_number`, both, or neither. Default values should be sensible (e.g., `end_beat_number = start_beat_number + 1` if only `start_beat_number` is provided, and `start_beat_number = end_beat_number - 1` if only `end_beat_number` is provided, and `0, 1` if neither is provided).
-* **Status:** Addressed
-* **Resolution/Discussion:** The `add_spawn_enemy_event` and `add_spawn_trap_event` methods in `BeatmapEventManager` were updated to handle various combinations of `start_beat_number` and `end_beat_number` being `Optional[int]`. They now correctly calculate default values if one or both are omitted, ensuring valid beat ranges.
-* **Reference:** Implemented in `beatmap_event_manager.py` and demonstrated in `main_beatmap_app.py`.
-
----
-
-**ISSUE 7: Separation of `game_entity_definitions.json` and `game_trap_definitions.json`**
-* **Description:** The game's entity definitions, particularly for enemies and traps, should be split into separate JSON files for clarity and easier management. This means `BeatmapEventManager` needs to load and access two distinct dictionaries for enemy IDs and trap IDs.
-* **Status:** Addressed
-* **Resolution/Discussion:** The `parse_lua_to_json.py` script was modified to output two separate JSON files: `game_entity_definitions.json` (for enemies and items) and `game_trap_definitions.json` (for traps). `BeatmapEventManager` was updated to load both these files into `ENEMY_NAMES` and `TRAP_NAMES` class variables, respectively, and provides `get_enemy_name` and `get_trap_name` methods for easy lookup.
-* **Reference:** Implemented in `scripts/parse_lua_to_json.py` and `beatmap_event_manager.py`.
-
----
-
-**ISSUE 8: Adding `SpawnTrap` Event Functionality**
-* **Description:** The `BeatmapEventManager` needs a dedicated method to add `SpawnTrap` events, similar to how `SpawnEnemy` events are handled. This method should encapsulate the specific data pairs required for trap events, including `TrapTypeToSpawn` and optional `TrapHealthInBeats`.
-* **Status:** Addressed
-* **Resolution/Discussion:** The `add_spawn_trap_event` method was added to `BeatmapEventManager`. It correctly constructs a `SpawnTrap` event dictionary, including dynamic `TrapTypeToSpawn` based on a friendly `trap_type` name lookup, and optionally includes `TrapHealthInBeats`.
-* **Reference:** Implemented in `beatmap_event_manager.py` and demonstrated in `main_beatmap_app.py`.
-
----
-
-**ISSUE 9: Private Path Configuration (Git Ignore)**
-* **Description:** Local game installation paths and template file locations should be stored in a separate file that is not committed to version control, enhancing portability and security for different developers or environments.
-* **Status:** Addressed
-* **Resolution/Discussion:** A new file `game_paths.py` was created to hold these sensitive paths. It was explicitly added to the `.gitignore` file to ensure it's not tracked by Git. All scripts that rely on these paths now import from `game_paths.py`.
-* **Reference:** Introduced `game_paths.py` and updated `.gitignore`.
-
----
-
-**ISSUE 10: Per-Song Folder and Asset Copying for Generated Content**
-* **Description:** Each generated custom song should reside in its own dedicated, timestamped folder within the `SONGS_BASE_DIR`. This folder should contain the generated beatmap JSON, the updated `info.json`, and a copy of the audio file template.
-* **Status:** Addressed
-* **Resolution/Discussion:** The `scripts/generate_zombie_beatmap.py` script was updated to create a new folder using a timestamp and an optional `new_song_name`. It now saves the generated beatmap JSON and the updated `info.json` into this new directory and uses `shutil.copyfile` to copy the audio template into it.
-* **Reference:** Implemented in `scripts/generate_zombie_beatmap.py`.
-
----
-
-**ISSUE 11: User Setup and Configuration Experience**
-* **Description:** New users setting up the project might struggle with locating and correctly configuring necessary files like `game_paths.py` (which is git-ignored) and providing `RiftTypes.lua` for entity parsing, potentially leading to errors and frustration.
-* **Status:** Addressed
-* **Resolution/Discussion:** A template file, `game_paths_template.py`, was created to provide a clear example for users to copy and modify for their local environment. Comprehensive setup instructions were added to the `How to Use (High-Level)` section of the `project_context.md`, guiding users on obtaining `RiftTypes.lua`, running the parsing script, and configuring `game_paths.py`. This significantly improves the initial setup experience.
-* **Reference:** Implemented by creating `game_paths_template.py` and updating `project_context.md`'s "How to Use" section.
-
----
-
-## Key Design Decisions
-
-* **Beat Count Handling:** The `beat_count` is passed as a parameter to `InfoFileManager.add_difficulty_entry` rather than being automatically calculated by `InfoFileManager`. This maintains a clear separation of concerns, keeping `InfoFileManager` focused on metadata and preventing it from needing to parse beatmap content.
-* **Private Path Configuration:** Local game installation paths are stored in `game_paths.py` (or `local_config.py`) and are Git-ignored. This improves portability and security.
-* **Delegation of Event Management:** The `BeatmapEditor` class delegates all specific event-related operations (adding, finding, updating, deleting events) to an instance of `BeatmapEventManager`. This promotes modularity and keeps the `BeatmapEditor` focused on the overall beatmap file structure and properties.
-
-"""
-
-    # --- SECTION 3: Current Codebase ---
-    
     # Function to parse .gitignore and return a list of regex patterns
-    # Each pattern is a tuple: (compiled_regex, is_negated_pattern)
     def get_gitignore_patterns(gitignore_path: Path) -> List[Tuple[re.Pattern, bool]]:
         patterns = []
         if gitignore_path.exists():
@@ -154,29 +82,17 @@ Only recent issues are mentioned. Some older issues may not appear.
                     
                     # Handle directory patterns (ending with /)
                     if line.endswith('/'):
-                        pattern_str += '.*' # Match anything within that directory
-                    else:
-                        # If a pattern doesn't end with '/', it matches a file or a directory
-                        # with that exact name, or files within a directory of that name.
-                        # E.g., 'foo' should match 'foo', 'foo/bar', but not 'foobar'
-                        # This regex is a bit simplified for exact gitignore behavior,
-                        # but handles common cases for matching paths.
-                        pattern_str = f"({pattern_str}|{pattern_str}/.*)"
-
-                    # Handle patterns not containing a slash (e.g., "foo") - these match basenames anywhere
-                    if '/' not in line:
-                         pattern_str = f"(^|.*/){pattern_str}" # Match at start of string or after a slash
-
-                    # Allow leading '/' to anchor to project root (remove escape for it)
-                    if line.startswith(r'\*'): # If original line started with '*' (after escape it's '\*')
-                        pass # Don't anchor, already handled by .* at beginning
-                    elif line.startswith('/'):
-                        # If the original pattern started with /, it means it's anchored to the root.
-                        # We've already escaped it, so we need to adjust the anchoring.
-                        # The re.escape might escape the '/', so we re-adjust pattern_str
+                        # Match directory itself and its contents
+                        pattern_str += '.*' 
+                    # If pattern is just a name (e.g., 'foo'), it matches files and dirs named 'foo' anywhere
+                    elif '/' not in line:
+                         pattern_str = f"(^|.*/){pattern_str}" 
+                    
+                    # Handle anchoring to project root (patterns starting with '/')
+                    if line.startswith('/'):
                         pattern_str = pattern_str.lstrip(r'\/') # Remove escaped leading slash
                         pattern_str = f"^{pattern_str}" # Anchor to start of relative path
-
+                    
                     patterns.append((re.compile(pattern_str), is_negated))
         return patterns
 
@@ -192,27 +108,32 @@ Only recent issues are mentioned. Some older issues may not appear.
         
         # Paths that are always ignored regardless of .gitignore
         # This prevents including the context file itself or the generation script
-        if relative_path == Path(output_filename) or relative_path == Path(__file__).relative_to(project_root):
+        if relative_path == Path(output_filename) or \
+           relative_path == Path(__file__).relative_to(project_root) or \
+           relative_path == Path(readme_path).relative_to(project_root) or \
+           relative_path == Path(issues_path).relative_to(project_root) or \
+           relative_path == Path(design_decisions_path).relative_to(project_root) or \
+           relative_path == Path(ai_instructions_path).relative_to(project_root):
             return True
 
         # Track the last match: True if ignored, False if negated
         final_decision_is_ignored = False
 
         for pattern_regex, is_negated in ignore_patterns:
-            if pattern_regex.fullmatch(path_str) or pattern_regex.fullmatch(os.path.basename(path_str)):
-                # If a pattern matches the basename (e.g. 'build' matches 'dir/build')
-                # this is simplified for typical gitignore usage that isn't too complex.
-                # A more robust solution would be a proper gitignore parser library.
+            # Check if the full relative path matches the pattern
+            if pattern_regex.fullmatch(path_str):
                 if is_negated:
                     final_decision_is_ignored = False # A negation overrides previous ignores
                 else:
                     final_decision_is_ignored = True # An ignore pattern matches
-            
-            # Additional check for directory matches: if the path starts with the pattern
-            # assuming the pattern itself represents a directory.
-            # This is a simplification; a full .gitignore parser would handle this precisely.
-            if not is_negated and pattern_regex.pattern.endswith('.*') and path_str.startswith(pattern_regex.pattern[:-2].replace(r'.\*', '').strip('^')):
-                final_decision_is_ignored = True # Mark as ignored if it's a directory pattern
+            # If the pattern doesn't contain a slash, check if it matches the basename
+            elif '/' not in pattern_regex.pattern.replace(r'.\*', ''): # Check original pattern part
+                 if pattern_regex.fullmatch(os.path.basename(path_str)):
+                    if is_negated:
+                        final_decision_is_ignored = False
+                    else:
+                        final_decision_is_ignored = True
+
 
         return final_decision_is_ignored
 
@@ -221,27 +142,35 @@ Only recent issues are mentioned. Some older issues may not appear.
         current_relative_dir = Path(dirpath).relative_to(project_root)
 
         # Filter out ignored directories *before* walking into them
-        # (modifying dirnames in-place changes os.walk behavior)
         # Create a copy of dirnames to iterate over while modifying the original list
         dirs_to_process = dirnames[:] 
         dirnames.clear() # Clear original list to fill with allowed ones
 
         for dname in dirs_to_process:
             relative_dir_path = current_relative_dir / dname
-            if not should_ignore(relative_dir_path):
-                dirnames.append(dname) # Only keep directories that are not ignored
+            # Do not traverse into hidden directories (like .git, .vscode, etc.) or any directory listed in .gitignore
+            if dname.startswith('.') or should_ignore(relative_dir_path):
+                continue
+            dirnames.append(dname) # Only keep directories that are not ignored
 
         for filename in filenames:
             file_absolute_path = Path(dirpath) / filename
             file_relative_path = file_absolute_path.relative_to(project_root)
             
-            # Check against .gitignore patterns
+            # Check against .gitignore patterns and always-ignored files
             if not should_ignore(file_relative_path):
                 code_files.append(str(file_relative_path).replace("\\", "/")) # Store with forward slashes
 
     codebase_content = "## Current Codebase Files\n\n"
     # Sort files for consistent output
     code_files.sort() 
+
+    # --- New print statement for listed files ---
+    print("\n--- Files included in project_context.md ---")
+    for file_path_str in code_files:
+        print(f"- {file_path_str}")
+    print("-------------------------------------------\n")
+
     for file_path_str in code_files:
         file_path = project_root / file_path_str
         if file_path.exists():
@@ -266,36 +195,50 @@ Only recent issues are mentioned. Some older issues may not appear.
 
     # --- Combine all sections ---
     full_context_content = f"""
-# Project Context for AI Assistant
+# Project Context for AI Assistant - {project_name}
 
 **Generated On:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-This document consolidates all necessary information for an AI assistant to understand the "Rift of the NecroDancer Custom Beatmap Generator" project. It includes the project overview, a chronological list of issues and their resolutions, key design decisions, and the full current codebase.
+This document consolidates all necessary information for an AI assistant to understand the "{project_name}" project. It includes the project overview, a chronological list of issues and their resolutions, key design decisions, and the full current codebase.
 
 {readme_content}
 
 {issues_content}
 
+{design_decisions_content}
+
+{ai_instructions_content}
+
 {codebase_content}
 
-## Instructions for AI Assistant
-
-* Always refer to the provided codebase files as the authoritative source for the project's current state.
-* When proposing changes, indicate which file(s) are affected and provide clear diffs or updated code blocks.
-* Prioritize addressing issues chronologically as listed, or as directed by the user in the current conversation.
-* Maintain the established code style and structure.
-* Be mindful of the design decisions outlined above.
-* Help the user use Conventional Commits and Semantic Versioning.
 """
 
     with open(project_root / output_filename, "w", encoding="utf-8") as f:
         f.write(full_context_content.strip())
 
     print(f"\nSuccessfully generated '{output_filename}' in the project root directory.")
-    print("Please review the content, especially the 'Chronological List of Issues/Requirements' section,")
-    print("and fill in the details manually based on our conversation history.")
+    print("Please review the content.")
     print("\nWhen starting a new conversation with an AI, copy the *entire content* of this file into the prompt.")
 
 
 if __name__ == "__main__":
-    generate_context_markdown()
+    # Example usage for the "Rift of the NecroDancer Custom Beatmap Generator" project
+    generate_context_markdown(
+        project_name="Rift of the NecroDancer Custom Beatmap Generator",
+        readme_filename="README.md", # Assuming README.md is in the project root
+        issues_filename="project_issues.md", # Assuming project_issues.md is in the project root
+        design_decisions_filename="project_design_decisions.md", # Assuming project_design_decisions.md is in the project root
+        ai_instructions_filename="ai_instructions.md" # Assuming ai_instructions.md is in the project root
+    )
+
+    # For a new project, you could call it like this:
+    # generate_context_markdown(
+    #     project_name="My New Python App",
+    #     issues_filename="my_app_issues.md", # If you have a different issues file
+    #     design_decisions_filename="my_app_design.md", # If you have a different design file
+    #     # Or omit arguments to use defaults for non-existent files:
+    #     # issues_filename="non_existent_issues.md" 
+    # )
+    
+    # Or for a super generic context without specific issues/design decisions:
+    # generate_context_markdown(project_name="Generic Python Utility")
