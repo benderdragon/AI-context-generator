@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 from datetime import datetime
+import re
+from typing import List, Tuple # Import Tuple for clearer type hinting
 
 def generate_context_markdown(output_filename: str = "project_context.md"):
     """
@@ -109,43 +111,158 @@ Only recent issues are mentioned. Some older issues may not appear.
 
 ---
 
+**ISSUE 11: User Setup and Configuration Experience**
+* **Description:** New users setting up the project might struggle with locating and correctly configuring necessary files like `game_paths.py` (which is git-ignored) and providing `RiftTypes.lua` for entity parsing, potentially leading to errors and frustration.
+* **Status:** Addressed
+* **Resolution/Discussion:** A template file, `game_paths_template.py`, was created to provide a clear example for users to copy and modify for their local environment. Comprehensive setup instructions were added to the `How to Use (High-Level)` section of the `project_context.md`, guiding users on obtaining `RiftTypes.lua`, running the parsing script, and configuring `game_paths.py`. This significantly improves the initial setup experience.
+* **Reference:** Implemented by creating `game_paths_template.py` and updating `project_context.md`'s "How to Use" section.
+
+---
+
 ## Key Design Decisions
 
 * **Beat Count Handling:** The `beat_count` is passed as a parameter to `InfoFileManager.add_difficulty_entry` rather than being automatically calculated by `InfoFileManager`. This maintains a clear separation of concerns, keeping `InfoFileManager` focused on metadata and preventing it from needing to parse beatmap content.
 * **Private Path Configuration:** Local game installation paths are stored in `game_paths.py` (or `local_config.py`) and are Git-ignored. This improves portability and security.
+* **Delegation of Event Management:** The `BeatmapEditor` class delegates all specific event-related operations (adding, finding, updating, deleting events) to an instance of `BeatmapEventManager`. This promotes modularity and keeps the `BeatmapEditor` focused on the overall beatmap file structure and properties.
 
 """
 
     # --- SECTION 3: Current Codebase ---
-    # List of files to include in the context, relative to the project root
-    code_files = [
-        "beatmap_editor.py",
-        "beatmap_event_manager.py",
-        "info_file_manager.py",
-        "scripts/generate_zombie_beatmap.py",
-        "scripts/parse_lua_to_json.py",
-        "main_beatmap_app.py",
-        "game_paths_template.py",
-        "game_entity_definitions.json",
-        "game_trap_definitions.json",
-        ".gitignore"
-    ]
+    
+    # Function to parse .gitignore and return a list of regex patterns
+    # Each pattern is a tuple: (compiled_regex, is_negated_pattern)
+    def get_gitignore_patterns(gitignore_path: Path) -> List[Tuple[re.Pattern, bool]]:
+        patterns = []
+        if gitignore_path.exists():
+            with open(gitignore_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    is_negated = line.startswith('!')
+                    if is_negated:
+                        line = line[1:] # Remove '!'
+                    
+                    # Convert .gitignore patterns to regex
+                    # Escape special characters that are not * or ?
+                    pattern_str = re.escape(line)
+                    # Convert * to .* (any characters)
+                    pattern_str = pattern_str.replace(r'\*', '.*')
+                    # Convert ? to . (any single character)
+                    pattern_str = pattern_str.replace(r'\?', '.')
+                    
+                    # Handle directory patterns (ending with /)
+                    if line.endswith('/'):
+                        pattern_str += '.*' # Match anything within that directory
+                    else:
+                        # If a pattern doesn't end with '/', it matches a file or a directory
+                        # with that exact name, or files within a directory of that name.
+                        # E.g., 'foo' should match 'foo', 'foo/bar', but not 'foobar'
+                        # This regex is a bit simplified for exact gitignore behavior,
+                        # but handles common cases for matching paths.
+                        pattern_str = f"({pattern_str}|{pattern_str}/.*)"
+
+                    # Handle patterns not containing a slash (e.g., "foo") - these match basenames anywhere
+                    if '/' not in line:
+                         pattern_str = f"(^|.*/){pattern_str}" # Match at start of string or after a slash
+
+                    # Allow leading '/' to anchor to project root (remove escape for it)
+                    if line.startswith(r'\*'): # If original line started with '*' (after escape it's '\*')
+                        pass # Don't anchor, already handled by .* at beginning
+                    elif line.startswith('/'):
+                        # If the original pattern started with /, it means it's anchored to the root.
+                        # We've already escaped it, so we need to adjust the anchoring.
+                        # The re.escape might escape the '/', so we re-adjust pattern_str
+                        pattern_str = pattern_str.lstrip(r'\/') # Remove escaped leading slash
+                        pattern_str = f"^{pattern_str}" # Anchor to start of relative path
+
+                    patterns.append((re.compile(pattern_str), is_negated))
+        return patterns
+
+    # Get .gitignore patterns
+    gitignore_path = project_root / ".gitignore"
+    ignore_patterns = get_gitignore_patterns(gitignore_path)
+
+    code_files: List[str] = []
+    
+    # Function to check if a file path should be ignored
+    def should_ignore(relative_path: Path) -> bool:
+        path_str = str(relative_path).replace("\\", "/") # Standardize path separators
+        
+        # Paths that are always ignored regardless of .gitignore
+        # This prevents including the context file itself or the generation script
+        if relative_path == Path(output_filename) or relative_path == Path(__file__).relative_to(project_root):
+            return True
+
+        # Track the last match: True if ignored, False if negated
+        final_decision_is_ignored = False
+
+        for pattern_regex, is_negated in ignore_patterns:
+            if pattern_regex.fullmatch(path_str) or pattern_regex.fullmatch(os.path.basename(path_str)):
+                # If a pattern matches the basename (e.g. 'build' matches 'dir/build')
+                # this is simplified for typical gitignore usage that isn't too complex.
+                # A more robust solution would be a proper gitignore parser library.
+                if is_negated:
+                    final_decision_is_ignored = False # A negation overrides previous ignores
+                else:
+                    final_decision_is_ignored = True # An ignore pattern matches
+            
+            # Additional check for directory matches: if the path starts with the pattern
+            # assuming the pattern itself represents a directory.
+            # This is a simplification; a full .gitignore parser would handle this precisely.
+            if not is_negated and pattern_regex.pattern.endswith('.*') and path_str.startswith(pattern_regex.pattern[:-2].replace(r'.\*', '').strip('^')):
+                final_decision_is_ignored = True # Mark as ignored if it's a directory pattern
+
+        return final_decision_is_ignored
+
+    # Walk the project directory to find all files
+    for dirpath, dirnames, filenames in os.walk(project_root):
+        current_relative_dir = Path(dirpath).relative_to(project_root)
+
+        # Filter out ignored directories *before* walking into them
+        # (modifying dirnames in-place changes os.walk behavior)
+        # Create a copy of dirnames to iterate over while modifying the original list
+        dirs_to_process = dirnames[:] 
+        dirnames.clear() # Clear original list to fill with allowed ones
+
+        for dname in dirs_to_process:
+            relative_dir_path = current_relative_dir / dname
+            if not should_ignore(relative_dir_path):
+                dirnames.append(dname) # Only keep directories that are not ignored
+
+        for filename in filenames:
+            file_absolute_path = Path(dirpath) / filename
+            file_relative_path = file_absolute_path.relative_to(project_root)
+            
+            # Check against .gitignore patterns
+            if not should_ignore(file_relative_path):
+                code_files.append(str(file_relative_path).replace("\\", "/")) # Store with forward slashes
 
     codebase_content = "## Current Codebase Files\n\n"
+    # Sort files for consistent output
+    code_files.sort() 
     for file_path_str in code_files:
         file_path = project_root / file_path_str
         if file_path.exists():
             # Determine language for markdown code block
-            lang = "python"
-            if file_path_str.endswith(".gitignore"):
-                lang = "text" # .gitignore is plain text
+            lang = "text" # Default to text
+            if file_path_str.endswith(".py"):
+                lang = "python"
+            elif file_path_str.endswith(".json"):
+                lang = "json"
+            elif file_path_str.endswith(".md"):
+                lang = "markdown"
+            elif file_path_str == ".gitignore":
+                lang = "text" # Explicitly text for .gitignore
             
             codebase_content += f"### File: `{file_path_str}`\n\n"
             codebase_content += f"```{lang}\n"
             codebase_content += file_path.read_text(encoding="utf-8")
             codebase_content += f"\n```\n\n"
         else:
-            codebase_content += f"### File: `{file_path_str}` - NOT FOUND (Please ensure it exists in your project root or `scripts/`)\n\n"
+            # This 'else' block should ideally not be reached if should_ignore and os.walk are perfect
+            codebase_content += f"### File: `{file_path_str}` - NOT FOUND (This should not happen if file exists on disk)\n\n"
 
     # --- Combine all sections ---
     full_context_content = f"""
@@ -153,7 +270,7 @@ Only recent issues are mentioned. Some older issues may not appear.
 
 **Generated On:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-This document consolidates all necessary information for an AI assistant to understand the "Crypt of the NecroDancer Custom Beatmap Generator" project. It includes the project overview, a chronological list of issues and their resolutions, key design decisions, and the full current codebase.
+This document consolidates all necessary information for an AI assistant to understand the "Rift of the NecroDancer Custom Beatmap Generator" project. It includes the project overview, a chronological list of issues and their resolutions, key design decisions, and the full current codebase.
 
 {readme_content}
 
@@ -181,16 +298,4 @@ This document consolidates all necessary information for an AI assistant to unde
 
 
 if __name__ == "__main__":
-    # Ensure this script is run from within the 'scripts' directory
-    # or adjust `project_root` accordingly if it's run from the main project root.
-    # For example, if you run `python scripts/generate_context_markdown.py`
-    # and your project structure is:
-    # my_project/
-    # ├── scripts/
-    # │   └── generate_context_markdown.py
-    # └── README.md
-    # └── beatmap_editor.py
-    # etc.
-    # The `Path(__file__).parent.parent` correctly navigates up to `my_project/`.
-    
     generate_context_markdown()
