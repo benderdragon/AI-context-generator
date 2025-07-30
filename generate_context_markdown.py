@@ -5,12 +5,12 @@ import re
 from typing import List, Tuple
 
 def generate_context_markdown(
-    output_filename: str = "project_context.md",
+    output_filename: str = "output/project_context.md",
     project_name: str = "Unnamed Project",
     readme_filename: str = "README.md",
-    issues_filename: str = "project_issues.md",
-    design_decisions_filename: str = "project_design_decisions.md",
-    ai_instructions_filename: str = "ai_instructions.md",
+    issues_filename: str = "docs/project_issues.md",
+    design_decisions_filename: str = "docs/project_design_decisions.md",
+    ai_instructions_filename: str = "docs/ai_instructions.md",
     max_output_characters: int = 500000,
     split_output_if_truncated: bool = False
 ):
