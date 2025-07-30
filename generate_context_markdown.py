@@ -172,10 +172,12 @@ def generate_context_markdown(
     num_of_eligible_files = len(all_eligible_code_files)
 
     # --- Build the initial fixed content sections ---
+    generation_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
     initial_content_template = f"""
 # Project Context for AI Assistant - {project_name}
 
-**Generated On:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Generated On:** {generation_timestamp}
 
 This document consolidates all necessary information for an AI assistant to understand the "{project_name}" project. It includes the project overview, a chronological list of issues and their resolutions, key design decisions, and the full current codebase.
 
@@ -188,6 +190,17 @@ This document consolidates all necessary information for an AI assistant to unde
 {ai_instructions_content}
 
 ## Current Codebase Files
+
+"""
+    # Define a smaller header for subsequent parts.
+    subsequent_part_header = f"""
+# Project Context for AI Assistant - {project_name} (Continued)
+
+**Generated On:** {generation_timestamp}
+
+This document is a continuation of the project codebase. Please ensure all parts have been provided.
+
+## Current Codebase Files (Continued)
 
 """
     
@@ -240,7 +253,9 @@ This document consolidates all necessary information for an AI assistant to unde
             truncation_warning += f"Consider increasing `max_output_characters` or utilizing the multi-file output option.\n"
             truncation_warning += f"---\n"
 
-        full_part_content = initial_content_template + "".join(content_list) + truncation_warning + part_header_warning
+        # Choose the correct header content based on the part number
+        header_content = initial_content_template if part_num == 1 else subsequent_part_header
+        full_part_content = header_content + "".join(content_list) + truncation_warning + part_header_warning
         
         with open(project_root / part_output_filename, "w", encoding="utf-8") as f:
             f.write(full_part_content.strip())
@@ -254,12 +269,8 @@ This document consolidates all necessary information for an AI assistant to unde
         code_files_included_in_current_part.clear()
         
     
-    current_length_of_part = len(initial_content_template) # Start each part with the length of fixed sections
+    current_length_of_part = len(initial_content_template) # Start with the length of the main preamble for Part 1
 
-    # Initial write for the first part, which contains all fixed content
-    # TODO: change this
-    # We will append codebase files to it
-    
     # --- Add codebase files up to the limit ---
     for file_path_str in all_eligible_code_files:
         file_path = project_root / file_path_str
@@ -293,12 +304,11 @@ This document consolidates all necessary information for an AI assistant to unde
                         files_in_this_part=len(code_files_included_in_current_part)
                     )
                     current_part_number += 1
-                    current_length_of_part = len(initial_content_template) # Reset length for new part
-                    # Re-add fixed content implicitly by resetting the length, then we'll add code
-                    # The write_part_file function already prefixes with initial_content_template
+                    # CRITICAL: Reset length for the new part using the smaller header
+                    current_length_of_part = len(subsequent_part_header) 
                 else:
                     # If not splitting, just truncate and exit loop
-                    print(f"Stopping content generation for a single file due to character limit ({max_output_characters}).")
+                    print(f"Stopping content generation for a single file due to character limit ({str(max_output_characters)}).")
                     break # Stop adding files
 
             current_content_for_part.append(f"### File: `{file_path_str}`\n\n")
@@ -336,14 +346,14 @@ This document consolidates all necessary information for an AI assistant to unde
         for file_path_str in all_files_included_across_parts:
             print(f"- {file_path_str}")
         if len(all_files_included_across_parts) < num_of_eligible_files:
-            print(f"... and {num_of_eligible_files - len(all_files_included_across_parts)} more files were omitted due to character limit.")
+            print(f"... and {str(num_of_eligible_files - len(all_files_included_across_parts))} more files were omitted due to character limit.")
     else:
         print("No code files were included (either none found or all filtered/truncated).")
     print("-------------------------------------------\n")
 
     print("Please review the content.")
     if current_part_number > 1:
-        print(f"\nIMPORTANT: Multiple files were generated: {Path(output_filename).stem}_part_1.md through {Path(output_filename).stem}_part_{current_part_number}.md.")
+        print(f"\nIMPORTANT: Multiple files were generated: {Path(output_filename).stem}_part_1.md through {Path(output_filename).stem}_part_{str(current_part_number)}.md.")
         print("When starting a new conversation with an AI, you MUST copy the *entire content* of **ALL** generated parts, one after the other, into the prompt.")
         print("Start with Part 1, then Part 2, and so on.")
     else:
