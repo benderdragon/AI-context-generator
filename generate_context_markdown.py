@@ -2,15 +2,14 @@ import os
 from pathlib import Path
 from datetime import datetime
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 def generate_context_markdown(
     output_filename: str = "output/project_context.md",
     project_name: str = "Unnamed Project",
     readme_filename: str = "README.md",
-    issues_filename: str = "docs/project_issues.md",
-    design_decisions_filename: str = "docs/project_design_decisions.md",
     ai_instructions_filename: str = "docs/ai_instructions.md",
+    optional_docs: Optional[List[str]] = None,
     max_output_characters: int = 500000,
     split_output_if_truncated: bool = False
 ):
@@ -22,9 +21,9 @@ def generate_context_markdown(
         output_filename (str): The base name of the output Markdown file(s).
         project_name (str): The name of the project.
         readme_filename (str): The filename of the project's README.
-        issues_filename (str): The filename containing chronological issues/requirements.
-        design_decisions_filename (str): The filename containing key design decisions.
         ai_instructions_filename (str): The filename containing AI assistant instructions.
+        optional_docs (Optional[List[str]]): A list of paths to other markdown files
+                                             to include in the preamble.
         max_output_characters (int): The maximum approximate character limit for each output file.
                                      Content will be truncated if this limit is exceeded.
         split_output_if_truncated (bool): If True, when truncation occurs, the output will
@@ -32,8 +31,11 @@ def generate_context_markdown(
                                           project_context_part_1.md, project_context_part_2.md).
                                           If False, only one file will be generated and truncated.
     """
-    project_root = Path(__file__).parent.parent 
+    project_root = Path(__file__).parent.parent
     
+    if optional_docs is None:
+        optional_docs = []
+
     # --- SECTION 1: Project Overview (from README.md) ---
     readme_path = project_root / readme_filename
     readme_content = ""
@@ -42,29 +44,30 @@ def generate_context_markdown(
     else:
         readme_content = f"## Project Overview\n\n`{readme_filename}` not found. Please create one with project description."
 
-    # --- SECTION 2: Chronological List of Issues/Requirements (from project_issues.md) ---
-    issues_path = project_root / issues_filename
-    issues_content = ""
-    if issues_path.exists():
-        issues_content = issues_path.read_text(encoding="utf-8")
-    else:
-        issues_content = f"## Chronological List of Issues/Requirements & Resolutions\n\n`{issues_filename}` not found. Please create one with project issues and resolutions."
-
-    # --- SECTION 3: Key Design Decisions (from project_design_decisions.md) ---
-    design_decisions_path = project_root / design_decisions_filename
-    design_decisions_content = ""
-    if design_decisions_path.exists():
-        design_decisions_content = design_decisions_path.read_text(encoding="utf-8")
-    else:
-        design_decisions_content = f"## Key Design Decisions\n\n`{design_decisions_filename}` not found. Please create one with key design decisions."
-
-    # --- SECTION 4: Instructions for AI Assistant (from ai_instructions.md) ---
+    # --- SECTION 2: Instructions for AI Assistant (from ai_instructions.md) ---
     ai_instructions_path = project_root / ai_instructions_filename
     ai_instructions_content = ""
     if ai_instructions_path.exists():
         ai_instructions_content = ai_instructions_path.read_text(encoding="utf-8")
     else:
         ai_instructions_content = f"## Instructions for AI Assistant\n\n`{ai_instructions_filename}` not found. Please create one with instructions for the AI assistant."
+    
+    # --- SECTION 3: Optional Supplemental Documents ---
+    optional_docs_content_list = []
+    for doc_path_str in optional_docs:
+        doc_path = project_root / doc_path_str
+        if doc_path.exists():
+            # Add a header for the document based on its filename
+            doc_title = Path(doc_path_str).stem.replace('_', ' ').title()
+            optional_docs_content_list.append(f"## {doc_title}\n\n")
+            optional_docs_content_list.append(doc_path.read_text(encoding="utf-8"))
+            optional_docs_content_list.append("\n\n")
+    
+    optional_docs_str = "".join(optional_docs_content_list)
+
+    # --- Build a set of all files that are part of the preamble to avoid duplicating them ---
+    preamble_files_to_ignore = {Path(p) for p in [readme_filename, ai_instructions_filename] + optional_docs}
+
 
     # Function to parse .gitignore and return a list of regex patterns
     def get_gitignore_patterns(gitignore_path: Path) -> List[Tuple[re.Pattern, bool]]:
@@ -115,12 +118,9 @@ def generate_context_markdown(
         
         # Paths that are always ignored regardless of .gitignore
         # This prevents including the context file itself or the generation script
-        if relative_path == Path(output_filename) or \
+        if Path(output_filename).stem in path_str or \
            relative_path == Path(__file__).relative_to(project_root) or \
-           relative_path == Path(readme_path).relative_to(project_root) or \
-           relative_path == Path(issues_path).relative_to(project_root) or \
-           relative_path == Path(design_decisions_path).relative_to(project_root) or \
-           relative_path == Path(ai_instructions_path).relative_to(project_root):
+           relative_path in preamble_files_to_ignore:
             return True
 
         # Track the last match: True if ignored, False if negated
@@ -179,16 +179,13 @@ def generate_context_markdown(
 
 **Generated On:** {generation_timestamp}
 
-This document consolidates all necessary information for an AI assistant to understand the "{project_name}" project. It includes the project overview, a chronological list of issues and their resolutions, key design decisions, and the full current codebase.
+This document consolidates all necessary information for an AI assistant to understand the "{project_name}" project. It includes the project overview, AI instructions, supplemental documentation (if any), and the full current codebase.
 
 {readme_content}
 
-{issues_content}
-
-{design_decisions_content}
-
 {ai_instructions_content}
 
+{optional_docs_str}
 ## Current Codebase Files
 
 """
@@ -364,6 +361,10 @@ if __name__ == "__main__":
     # Example usage for the "Rift of the NecroDancer Custom Beatmap Generator" project
     generate_context_markdown(
         project_name="Rift of the NecroDancer Custom Beatmap Generator",
+        optional_docs=[
+            "docs/project_issues.md",
+            "docs/project_design_decisions.md"
+        ],
         max_output_characters=30000,
         split_output_if_truncated=True # Set to True to enable multi-file output if truncated
     )
