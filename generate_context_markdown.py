@@ -254,11 +254,15 @@ This document is a continuation of the project codebase. Please ensure all parts
         header_content = initial_content_template if part_num == 1 else subsequent_part_header
         full_part_content = header_content + "".join(content_list) + truncation_warning + part_header_warning
         
-        with open(project_root / part_output_filename, "w", encoding="utf-8") as f:
+        # Ensure the output directory exists before writing the file.
+        full_output_path = project_root / part_output_filename
+        full_output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(full_output_path, "w", encoding="utf-8") as f:
             f.write(full_part_content.strip())
         
         print(f"Successfully generated '{part_output_filename}' in the project root directory.")
-        print(f"Characters in '{part_output_filename}': {len(full_part_content.strip())}")
+        print(f"Characters in '{full_output_path}': {len(full_part_content.strip())}")
         print(f"Code files in this part: {str(files_in_this_part)}")
         
         # Clear for next part
