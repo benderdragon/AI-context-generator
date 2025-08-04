@@ -354,19 +354,29 @@ This document is a continuation of the project codebase. Please ensure all parts
             files_in_this_part=len(code_files_included_in_current_part)
         )
 
-    print(f"\nSuccessfully generated project context file(s) in the project root directory.")
-    print(f"Total eligible code files: {num_of_eligible_files}")
-    print(f"Total code files included across all parts: {len(all_files_included_across_parts)}")
+    # --- FINAL SUMMARY REPORT ---
+    print("\n--- Summary of Generated Context ---")
     
-    print("\n--- Files included in project_context.md (or its parts) ---")
+    # List all documentation files that were included in the preamble.
+    print(f"\n--- Documentation Files Included in Preamble ({str(len(sorted_doc_paths))}) ---")
+    if sorted_doc_paths:
+        for doc_path in sorted_doc_paths:
+            print(f"- {doc_path}")
+    else:
+        print("No optional documentation files were found or included.")
+    print("------------------------------------------")
+
+    # List all codebase files that were included.
+    print(f"\n--- Codebase Files Included ({str(len(all_files_included_across_parts))}/{str(num_of_eligible_files)}) ---")
     if all_files_included_across_parts:
         for file_path_str in all_files_included_across_parts:
             print(f"- {file_path_str}")
         if len(all_files_included_across_parts) < num_of_eligible_files:
             print(f"... and {str(num_of_eligible_files - len(all_files_included_across_parts))} more files were omitted due to character limit.")
     else:
-        print("No code files were included (either none found or all filtered/truncated).")
-    print("-------------------------------------------\n")
+        print("No codebase files were included (either none found or all filtered/truncated).")
+    print("------------------------------------------\n")
+    
 
     print("Please review the content.")
     if current_part_number > 1:
