@@ -359,24 +359,3 @@ This document is a continuation of the project codebase. Please ensure all parts
         print("Start with Part 1, then Part 2, and so on.")
     else:
         print("\nWhen starting a new conversation with an AI, copy the *entire content* of this file into the prompt.")
-
-
-if __name__ == "__main__":
-    # Example usage for the "Rift of the NecroDancer Custom Beatmap Generator" project
-    generate_context_markdown(
-        project_name="Rift of the NecroDancer Custom Beatmap Generator",
-        optional_docs=[
-            "docs/project_issues.md",
-            "docs/project_design_decisions.md"
-        ],
-        max_output_characters=30000,
-        split_output_if_truncated=True # Set to True to enable multi-file output if truncated
-    )
-
-    # Example for a new, smaller project, with a lower character limit for testing truncation
-    # and splitting:
-    # generate_context_markdown(
-    #     project_name="My Small Utility",
-    #     max_output_characters=20000, # Very low limit to force truncation/splitting
-    #     split_output_if_truncated=True
-    # )
