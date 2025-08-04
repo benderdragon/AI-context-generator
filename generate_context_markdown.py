@@ -11,6 +11,8 @@ def generate_context_markdown(
     ai_instructions_filename: str = "docs/ai_instructions.md",
     optional_docs: Optional[List[str]] = None,
     doc_folders: Optional[List[str]] = None,
+    exclude_files: Optional[List[str]] = None,
+    exclude_folders: Optional[List[str]] = None,
     max_output_characters: int = 500000,
     split_output_if_truncated: bool = False
 ):
@@ -27,6 +29,10 @@ def generate_context_markdown(
                                              to include in the preamble.
         doc_folders (Optional[List[str]]): A list of directory paths to scan for
                                            .md files to include in the preamble.
+        exclude_files (Optional[List[str]]): A list of specific file paths to exclude
+                                             from the context.
+        exclude_folders (Optional[List[str]]): A list of directory paths to exclude
+                                               from the context.
         max_output_characters (int): The maximum approximate character limit for each output file.
                                      Content will be truncated if this limit is exceeded.
         split_output_if_truncated (bool): If True, when truncation occurs, the output will
@@ -36,6 +42,10 @@ def generate_context_markdown(
     """
     project_root = Path(__file__).parent.parent
     
+    # --- Process exclusion lists for efficient lookup ---
+    files_to_exclude_set = {Path(p) for p in exclude_files} if exclude_files else set()
+    folders_to_exclude_set = {Path(p) for p in exclude_folders} if exclude_folders else set()
+
     # --- Gather all documentation files from both lists ---
     all_doc_paths = set()
     if optional_docs:
@@ -132,16 +142,25 @@ def generate_context_markdown(
     def should_ignore(relative_path: Path) -> bool:
         path_str = str(relative_path).replace("\\", "/") # Standardize path separators
         
-        # Paths that are always ignored regardless of .gitignore
-        # This prevents including the context file itself or the generation script
+        # --- Check against all exclusion criteria ---
+
+        # 1. Ignore generated output files, the script itself, or preamble docs
         if Path(output_filename).stem in path_str or \
            relative_path == Path(__file__).relative_to(project_root) or \
            relative_path in preamble_files_to_ignore:
             return True
 
-        # Track the last match: True if ignored, False if negated
-        final_decision_is_ignored = False
+        # 2. Ignore files in the explicit exclusion list
+        if relative_path in files_to_exclude_set:
+            return True
 
+        # 3. Ignore paths within any of the excluded folders
+        for excluded_folder in folders_to_exclude_set:
+            if excluded_folder in relative_path.parents or relative_path == excluded_folder:
+                return True
+
+        # 4. Check against .gitignore patterns
+        final_decision_is_ignored = False
         for pattern_regex, is_negated in ignore_patterns:
             # Check if the full relative path matches the pattern
             if pattern_regex.fullmatch(path_str):
@@ -156,7 +175,6 @@ def generate_context_markdown(
                         final_decision_is_ignored = False
                     else:
                         final_decision_is_ignored = True
-
 
         return final_decision_is_ignored
 

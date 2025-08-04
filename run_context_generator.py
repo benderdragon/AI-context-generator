@@ -7,14 +7,26 @@ from generate_context_markdown import generate_context_markdown
 PROJECT_NAME = "New Project"
 
 # A list of specific markdown files to include in the preamble.
-# These paths are relative to the project root.
 OPTIONAL_DOCS_TO_INCLUDE = [
     "docs/project_issues.md",
 ]
 
 # A list of folders to scan recursively for .md files to include.
 DOC_FOLDERS_TO_SCAN = [
-    "docs/api_reference", # Example folder for auto-generated docs
+    "docs/api_reference",
+]
+
+# A list of specific files to explicitly exclude from the context.
+FILES_TO_EXCLUDE = [
+    "package-lock.json",
+]
+
+# A list of folders to explicitly exclude from the context.
+FOLDERS_TO_EXCLUDE = [
+    "node_modules",
+    ".venv",
+    "dist",
+    "build",
 ]
 
 # The maximum number of characters for each output file.
@@ -35,6 +47,8 @@ if __name__ == "__main__":
         project_name=PROJECT_NAME,
         optional_docs=OPTIONAL_DOCS_TO_INCLUDE,
         doc_folders=DOC_FOLDERS_TO_SCAN,
+        exclude_files=FILES_TO_EXCLUDE,
+        exclude_folders=FOLDERS_TO_EXCLUDE,
         max_output_characters=MAX_CHARACTERS,
         split_output_if_truncated=SPLIT_FILES
     )
