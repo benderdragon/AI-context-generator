@@ -10,6 +10,7 @@ def generate_context_markdown(
     readme_filename: str = "README.md",
     ai_instructions_filename: str = "docs/ai_instructions.md",
     optional_docs: Optional[List[str]] = None,
+    doc_folders: Optional[List[str]] = None,
     max_output_characters: int = 500000,
     split_output_if_truncated: bool = False
 ):
@@ -22,8 +23,10 @@ def generate_context_markdown(
         project_name (str): The name of the project.
         readme_filename (str): The filename of the project's README.
         ai_instructions_filename (str): The filename containing AI assistant instructions.
-        optional_docs (Optional[List[str]]): A list of paths to other markdown files
+        optional_docs (Optional[List[str]]): A list of paths to specific markdown files
                                              to include in the preamble.
+        doc_folders (Optional[List[str]]): A list of directory paths to scan for
+                                           .md files to include in the preamble.
         max_output_characters (int): The maximum approximate character limit for each output file.
                                      Content will be truncated if this limit is exceeded.
         split_output_if_truncated (bool): If True, when truncation occurs, the output will
@@ -33,8 +36,19 @@ def generate_context_markdown(
     """
     project_root = Path(__file__).parent.parent
     
-    if optional_docs is None:
-        optional_docs = []
+    # --- Gather all documentation files from both lists ---
+    all_doc_paths = set()
+    if optional_docs:
+        all_doc_paths.update(optional_docs)
+    
+    if doc_folders:
+        for folder_str in doc_folders:
+            doc_folder_path = project_root / folder_str
+            if doc_folder_path.is_dir():
+                # Recursively find all markdown files in the folder
+                for md_file in doc_folder_path.glob('**/*.md'):
+                    relative_path_str = str(md_file.relative_to(project_root)).replace("\\", "/")
+                    all_doc_paths.add(relative_path_str)
 
     # --- SECTION 1: Project Overview (from README.md) ---
     readme_path = project_root / readme_filename
@@ -54,7 +68,8 @@ def generate_context_markdown(
     
     # --- SECTION 3: Optional Supplemental Documents ---
     optional_docs_content_list = []
-    for doc_path_str in optional_docs:
+    sorted_doc_paths = sorted(list(all_doc_paths)) # Sort for consistent order
+    for doc_path_str in sorted_doc_paths:
         doc_path = project_root / doc_path_str
         if doc_path.exists():
             # Add a header for the document based on its filename
@@ -66,7 +81,8 @@ def generate_context_markdown(
     optional_docs_str = "".join(optional_docs_content_list)
 
     # --- Build a set of all files that are part of the preamble to avoid duplicating them ---
-    preamble_files_to_ignore = {Path(p) for p in [readme_filename, ai_instructions_filename] + optional_docs}
+    preamble_files_to_ignore = {Path(p) for p in [readme_filename, ai_instructions_filename]}
+    preamble_files_to_ignore.update({Path(p) for p in all_doc_paths})
 
 
     # Function to parse .gitignore and return a list of regex patterns
