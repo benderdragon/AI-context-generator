@@ -320,7 +320,14 @@ This document is a continuation of the project codebase. Please ensure all parts
             elif file_path_str == ".gitignore":
                 lang = "text"
             
-            file_content = file_path.read_text(encoding="utf-8")
+            # Handle non-text (binary) files gracefully
+            try:
+                file_content = file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                print(f"  [Warning] Skipping non-UTF-8 file: {file_path_str}")
+                # Use a placeholder for binary files
+                file_content = "[Content not included: File is not UTF-8 encoded, likely binary]"
+                lang = "text" # Ensure it's treated as plain text
             
             # Estimate the size of this file's markdown block
             # Add 20 for markdown headers, backticks, newlines (approx)
