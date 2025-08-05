@@ -22,11 +22,22 @@ FILES_TO_EXCLUDE = [
 ]
 
 # A list of folders to explicitly exclude from the context.
+# Add any folder here to prevent it from being scanned.
 FOLDERS_TO_EXCLUDE = [
+    # VCS
+    ".git",
+    # IDEs / Editors
+    ".vscode",
+    ".idea",
+    # Language-specific
     "node_modules",
     ".venv",
+    "__pycache__",
+    # Build artifacts
     "dist",
     "build",
+    # To include .husky, simply comment out or remove the next line.
+    ".husky", 
 ]
 
 # The maximum number of characters for each output file.

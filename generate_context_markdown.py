@@ -45,7 +45,7 @@ def generate_context_markdown(
     # --- Process exclusion lists for efficient lookup ---
     files_to_exclude_set = {Path(p) for p in exclude_files} if exclude_files else set()
     folders_to_exclude_set = {Path(p) for p in exclude_folders} if exclude_folders else set()
-
+    
     # --- Gather all documentation files from both lists ---
     all_doc_paths = set()
     if optional_docs:
@@ -156,6 +156,7 @@ def generate_context_markdown(
 
         # 3. Ignore paths within any of the excluded folders
         for excluded_folder in folders_to_exclude_set:
+            # Check if the path is the folder itself or is inside the folder
             if excluded_folder in relative_path.parents or relative_path == excluded_folder:
                 return True
 
@@ -190,8 +191,7 @@ def generate_context_markdown(
 
         for dname in dirs_to_process:
             relative_dir_path = current_relative_dir / dname
-            # Do not traverse into hidden directories (like .git, .vscode, etc.) or any directory listed in .gitignore
-            if dname.startswith('.') or should_ignore(relative_dir_path):
+            if should_ignore(relative_dir_path):
                 continue
             dirnames.append(dname)
 
