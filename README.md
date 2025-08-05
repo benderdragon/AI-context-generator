@@ -74,6 +74,10 @@ The script performs the following steps:
     4.  Anything matching a pattern in your root `.gitignore` file.
 4.  **Generates Output:** It combines the preamble and the content of all filtered files into a single Markdown file, splitting it into parts if necessary.
 
+## Development Note
+
+This project was developed in a collaborative, pair-programming style with an AI assistant. The human developer provided high-level requirements, guidance, debugging, and feedback, while the AI assistant wrote the majority of the code. This serves as an example of a modern, AI-augmented development workflow.
+
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
